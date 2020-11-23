@@ -1,0 +1,235 @@
+#Import Libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import roc_auc_score, auc, roc_curve, confusion_matrix, classification_report
+
+
+#Gather Data from CSV
+data = pd.read_csv('C:/Users/Tim/python_projects/CSI 5810/bank/bank_full.csv')
+
+columns_name = list(data.columns)
+print(data.shape)
+
+data_cat = data.select_dtypes(include='object').copy()
+data_num = data.select_dtypes(include='int64').copy()
+categories = [data[x].unique() for x in columns_name if data[x].dtypes == 'object']
+most_freq_cat = [data[x].mode() for x in columns_name if data[x].dtypes == 'object']
+print (most_freq_cat)
+
+data_cat_new = data_cat.replace('unknown',np.nan, inplace=True)
+data_cat_new = data_cat.fillna(data_cat.mode().iloc[0])
+data_cat_new.isnull().values.any()
+data_cat_new.isnull().sum()
+
+data_cat_new.apply(pd.value_counts)
+freq_of_cat = [data_cat_new[x].value_counts() for x in data_cat_new.columns]
+print(freq_of_cat)
+
+plt.figure(figsize=(18,10))
+for i in range(0,2):
+    plt.subplot(1, 2, i+1)
+    freq_of_cat[i].plot(kind='bar')
+    plt.title(freq_of_cat[i].name)
+    plt.xticks(rotation=45)
+plt.show()
+
+plt.figure(figsize=(18,10))
+plt.subplot(1, 2, 1)
+freq_of_cat[2].plot(kind='bar')
+plt.title(freq_of_cat[2].name)
+plt.xticks(rotation=45)
+
+plt.subplot(1, 2, 2)
+freq_of_cat[3].plot(kind='bar')
+plt.title(freq_of_cat[3].name)
+plt.xticks(rotation=45)
+plt.show()
+
+plt.figure(figsize=(18,10))
+plt.subplot(1, 2, 1)
+freq_of_cat[4].plot(kind='bar')
+plt.title(freq_of_cat[4].name)
+plt.xticks(rotation=45)
+
+plt.subplot(1, 2, 2)
+freq_of_cat[5].plot(kind='bar')
+plt.title(freq_of_cat[5].name)
+plt.xticks(rotation=45)
+plt.show()
+
+plt.figure(figsize=(18,10))
+plt.subplot(1, 2, 1)
+freq_of_cat[6].plot(kind='bar')
+plt.title(freq_of_cat[6].name)
+plt.xticks(rotation=45)
+
+plt.subplot(1, 2, 2)
+freq_of_cat[7].plot(kind='bar')
+plt.title(freq_of_cat[7].name)
+plt.xticks(rotation=45)
+plt.show()
+
+plt.figure(figsize=(18,10))
+plt.subplot(1, 2, 1)
+freq_of_cat[8].plot(kind='bar')
+plt.title(freq_of_cat[8].name)
+plt.xticks(rotation=45)
+
+plt.subplot(1, 2, 2)
+freq_of_cat[9].plot(kind='bar')
+plt.title(freq_of_cat[9].name)
+plt.xticks(rotation=45)
+plt.show()
+
+data_cat_new['job_new']=np.where(data_cat_new['job'] =='student', 'unemployed', data_cat_new['job'])
+data_cat_new['job_new']=np.where(data_cat_new['job_new'] =='housemaid', 'unemployed', data_cat_new['job_new'])
+data_cat_new['job_new']=np.where(data_cat_new['job_new'] =='entrepreneur', 'self-employed', data_cat_new['job_new'])
+data_cat_new['job_new'].value_counts()
+
+data_cat_new['education'].unique()
+
+data_cat_new['month'].unique()
+
+education_order = ['primary', 'secondary', 'tertiary']
+month_order = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+
+def ordered_labels(df, col, order):
+    df[col] = df[col].astype('category')
+    df[col] = df[col].cat.reorder_categories(order, ordered=True)
+    df[col] = df[col].cat.codes.astype(int)
+
+
+ordered_labels(data_cat_new, 'education', education_order)
+ordered_labels(data_cat_new, 'month', month_order)
+
+cat_vars = data_cat_new.columns
+for var in cat_vars:
+    cat_list='var'+'.'+var
+    cat_list = pd.get_dummies(data_cat_new[var], prefix=var,drop_first=True)
+    data1=data_cat_new.join(cat_list)
+    data_cat_new=data1
+
+data_cat_new_vars=data_cat_new.columns.values.tolist()
+to_keep=[i for i in data_cat_new_vars if i not in cat_vars]
+
+data_cat_new1 = data_cat_new[to_keep]
+
+data_num.isnull().values.any()
+data_num.isnull().sum()
+sns.heatmap(data_num.isnull())
+plt.show()
+#______________________________________________________
+pd.set_option('display.width', 400)
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.max_rows', data_num.shape[0]+1)
+print(data_num.describe())
+
+data_num['pdays_new']=np.where(data_num['pdays']==-1, 'not contacted', 'contacted' )
+data_num=pd.concat([data_num, pd.get_dummies(data_num['pdays_new'],drop_first=True)],axis=1, sort=False)
+data_num = data_num.drop(['pdays', 'pdays_new'],1)
+
+data_num.mean()
+
+numerical = data_num.select_dtypes(include='int64').copy()
+numerical_names = data_num.select_dtypes(include='int64').columns
+numerical_cat = data_num.select_dtypes(include='uint8').copy()
+
+scaler = MinMaxScaler()
+numerical = scaler.fit_transform(numerical)
+numerical = pd.DataFrame(numerical )
+numerical.columns = numerical_names
+numerical.mean()
+data_num_new = pd.concat([numerical,data_num['not contacted']],axis=1, sort=False)
+
+data_new = pd.concat([data_cat_new1, data_num_new], axis=1, sort=False)
+
+data_new.info()
+
+data_new['deposit_yes'].value_counts()
+sns.countplot(x='deposit_yes', data=data_new, palette = 'hls')
+plt.show()
+
+def train_validate_test_split(df, train_percent=.6, validate_percent=.2, seed=101):
+    np.random.seed(seed)
+    perm = np.random.permutation(df.index)
+    m = len(df.index)
+    train_end = int(train_percent * m)
+    validate_end = int(validate_percent * m) + train_end
+    train = df.loc[perm[:train_end]]
+    validate = df.loc[perm[train_end:validate_end]]
+    test = df.loc[perm[validate_end:]]
+    return train, validate, test
+
+train, validate, test = train_validate_test_split(data_new)
+X_train = train.drop('deposit_yes',1)
+y_train = train['deposit_yes']
+X_validation = validate.drop('deposit_yes',1)
+y_validation = validate['deposit_yes']
+X_test = test.drop('deposit_yes',1)
+y_test = test['deposit_yes']
+
+balanced = SMOTE(random_state=0)
+balanced_data_X,balanced_data_y=balanced.fit_sample(X_train, y_train)
+balanced_data_X = pd.DataFrame(data=balanced_data_X,columns=X_train.columns )
+balanced_data_y= pd.DataFrame(data=balanced_data_y,columns=['deposit_yes'])
+sns.countplot(x='deposit_yes', data=balanced_data_y, palette = 'hls')
+plt.show()
+
+logreg = LogisticRegression()
+logreg.fit(balanced_data_X, balanced_data_y.values.ravel())
+y_pred = logreg.predict(X_test)
+print('Accuracy of logistic regression classifier on test set: {:.2f}'.format(logreg.score(X_test, y_test)))
+
+logit_roc_auc = roc_auc_score(y_test, logreg.predict(X_test))
+fpr, tpr, thresholds = roc_curve(y_test, logreg.predict_proba(X_test)[:,1])
+roc_auc = auc(fpr, tpr)
+plt.figure()
+plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % roc_auc)
+plt.plot([0, 1], [0, 1],'r--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.savefig('Log_ROC')
+plt.show()
+
+confusion_matrix = confusion_matrix(y_test, y_pred)
+print(confusion_matrix)
+print(classification_report(y_test, y_pred))
+print("Area under the ROC curve : %f" % roc_auc)
+sns.heatmap(confusion_matrix, annot=True, fmt='d',cmap='Blues')
+plt.show()
+
+fpr, tpr, thresholds = roc_curve(y_validation, logreg.predict_proba(X_validation)[:,1])
+i = np.arange(len(tpr)) # index for df
+roc = pd.DataFrame({'fpr' : pd.Series(fpr, index=i),'tpr' : pd.Series(tpr, index = i), '1-fpr' : pd.Series(1-fpr, index = i), 'tf' : pd.Series(tpr - (1-fpr), index = i), 'thresholds' : pd.Series(thresholds, index = i)})
+x = roc.iloc[(roc.tf-0).abs().argsort()[:1]]
+
+THRESHOLD = 0.397398
+preds = np.where(logreg.predict_proba(X_test)[:,1] > THRESHOLD, 1, 0)
+print(classification_report(y_test, preds))
+print('Accuracy of logistic regression classifier on test set: {:.2f}'.format(logreg.score(X_test, preds)))
+
+
+grid={"C":np.array([0.001,0.01,0.1,1,10]), "penalty":["l1","l2"]}
+logreg_cv=GridSearchCV(logreg,grid,cv=10)
+logreg_cv.fit(X_validation,y_validation)
+# View best hyperparameters
+print('Best Penalty:', logreg_cv.best_estimator_.get_params()['penalty'])
+print('Best C:', logreg_cv.best_estimator_.get_params()['C'])
+
+logreg = LogisticRegression(penalty='l2', C=10)
+logreg.fit(balanced_data_X, balanced_data_y.values.ravel())
+THRESHOLD = 0.397398
+preds = np.where(logreg.predict_proba(X_test)[:,1] > THRESHOLD, 1, 0)
+print(classification_report(y_test, preds))
+print('Accuracy of logistic regression classifier on test set: {:.2f}'.format(logreg.score(X_test, preds)))
